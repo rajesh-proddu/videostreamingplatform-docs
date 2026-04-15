@@ -5,6 +5,7 @@ Central documentation for the video streaming platform.
 ## Contents
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — System architecture, service details, data flow, event schemas, deployment topology, and technology stack
+- **[KUBERNETES.md](KUBERNETES.md)** — Detailed Kubernetes role: cluster topology, workload types, networking, storage, Kind/EKS provisioning, IRSA, ArgoCD GitOps, CI/CD pipeline, resource management
 
 ## Related Repositories
 

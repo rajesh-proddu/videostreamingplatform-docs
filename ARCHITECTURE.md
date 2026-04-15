@@ -183,7 +183,8 @@ Single K8s Cluster
 ├── infra              — Kafka (KRaft), LocalStack (Glue), pgvector
 ├── videostreamingplatform — Metadata Service, Data Service, MySQL, MinIO, ES
 ├── analytics          — Kafka→ES Consumer, Watch History Consumer, Catalog Admin
-└── recommendations    — Recommendation Service
+├── recommendations    — Recommendation Service
+└── observability      — Jaeger, Prometheus, Grafana
 ```
 
 ### Network Policies

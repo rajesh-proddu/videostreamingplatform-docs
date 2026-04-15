@@ -37,9 +37,6 @@ The platform runs on a **single Kubernetes cluster** with workloads segregated b
 │  │  ├─ mysql-init ConfigMap (DDL for videos, uploads, downloads)   │  │
 │  │  ├─ MinIO Deployment + bucket-init Job (S3-compatible storage)  │  │
 │  │  ├─ Elasticsearch Deployment (single-node, :9200)               │  │
-│  │  ├─ Jaeger Deployment (tracing UI :16686, OTLP :4317/:4318)    │  │
-│  │  ├─ Prometheus Deployment + ConfigMap (scrapes both services)   │  │
-│  │  ├─ Grafana Deployment + provisioning ConfigMaps                │  │
 │  │  ├─ app-config ConfigMap (all service env vars)                 │  │
 │  │  ├─ db-credentials Secret                                       │  │
 │  │  ├─ metadata-service NodePort Service (:30080 → :8080)          │  │
@@ -63,7 +60,7 @@ The platform runs on a **single Kubernetes cluster** with workloads segregated b
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                                                        │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ observability namespace (AWS only)            (main repo)        │  │
+│  │ observability namespace                       (main repo)        │  │
 │  │  ├─ Jaeger Deployment (with Badger persistent storage)          │  │
 │  │  ├─ Prometheus Deployment                                        │  │
 │  │  └─ Grafana Deployment + dashboards ConfigMaps                  │  │
@@ -76,7 +73,7 @@ The platform runs on a **single Kubernetes cluster** with workloads segregated b
 
 | Concern | Local (Kind) | AWS (EKS) |
 |---------|-------------|-----------|
-| Observability location | In `videostreamingplatform` namespace | Separate `observability` namespace |
+| Observability location | Separate `observability` namespace | Separate `observability` namespace |
 | MySQL | In-cluster Deployment | AWS RDS (out-of-cluster) |
 | S3 | MinIO in-cluster | AWS S3 (out-of-cluster) |
 | Service type | NodePort (forwarded by Kind) | LoadBalancer (NLB) |

@@ -44,14 +44,14 @@
 | Fix pgvector connection pooling in recommendation tools | videostreamingplatform-recommendations | Done |
 | Use AWS OpenSearch (managed) instead of self-hosted ES in production | videostreamingplatform | Done |
 
-### P1 — Production Hardening
+### P1 — 10K req/s (Production Hardening)
 
 | Task | Repo | Status |
 |------|------|--------|
-| Add Redis for metadata read caching (video metadata is read-heavy) | videostreamingplatform | Planned |
-| Upgrade RDS to non-burstable instance (db.r6g.medium) + read replica | videostreamingplatform | Planned |
-| Add API rate limiting (middleware or API gateway) | videostreamingplatform | Planned |
-| Increase MySQL max connections to 50+ with read replica routing | videostreamingplatform | Planned |
+| Add Redis for metadata read caching (video metadata is read-heavy) | videostreamingplatform + infra | Planned |
+| Add API rate limiting middleware | videostreamingplatform | Planned |
+| Add CloudFront CDN for video downloads | videostreamingplatform | Planned |
+| Increase MySQL max connections to 50+ | videostreamingplatform | Planned |
 
 ### P2 — Reliability & Parallelism
 

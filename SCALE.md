@@ -24,9 +24,9 @@
 
 - **No HPA** — replica counts are static, no auto-scaling under load — **FIXED in P0**
 - **No connection pooling** in recommendation tools (`user_history.py`, `trending.py` create a new `asyncpg.connect()` per call) — **FIXED in P0**
-- **No caching layer** (Redis/Memcached) — every metadata read hits MySQL
-- **No API gateway** — no rate limiting, no DDoS protection
-- **No CDN** — video downloads always go through data-service
+- **No caching layer** (Redis/Memcached) — every metadata read hits MySQL — **FIXED in P1**
+- **No API gateway** — no rate limiting, no DDoS protection — **Rate limiting FIXED in P1** (per-IP token bucket middleware)
+- **No CDN** — video downloads always go through data-service — **FIXED in P1** (CloudFront CDN)
 - **No circuit breaker** — downstream failures cascade
 - **Kafka RF=1** — no fault tolerance
 - **Elasticsearch single node, 256MB heap** — undersized for production
@@ -44,14 +44,14 @@
 | Fix pgvector connection pooling in recommendation tools | videostreamingplatform-recommendations | Done |
 | Use AWS OpenSearch (managed) instead of self-hosted ES in production | videostreamingplatform | Done |
 
-### P1 — 10K req/s (Production Hardening)
+### P1 — 10K req/s (Production Hardening) (DONE)
 
 | Task | Repo | Status |
 |------|------|--------|
-| Add Redis for metadata read caching (video metadata is read-heavy) | videostreamingplatform + infra | Planned |
-| Add API rate limiting middleware | videostreamingplatform | Planned |
-| Add CloudFront CDN for video downloads | videostreamingplatform | Planned |
-| Increase MySQL max connections to 50+ | videostreamingplatform | Planned |
+| Add Redis for metadata read caching (video metadata is read-heavy) | videostreamingplatform + infra | Done |
+| Add API rate limiting middleware (per-IP token bucket) | videostreamingplatform | Done |
+| Add CloudFront CDN for video downloads | videostreamingplatform | Done |
+| Increase MySQL max connections to 50 | videostreamingplatform | Done |
 
 ### P2 — Reliability & Parallelism
 
@@ -67,7 +67,6 @@
 
 | Task | Repo | Status |
 |------|------|--------|
-| Add CDN (CloudFront) for video downloads | videostreamingplatform | Planned |
 | Add circuit breaker for recommendation service calls | videostreamingplatform | Planned |
 | API gateway (Kong/AWS API Gateway) in front of all services | videostreamingplatform-infra | Planned |
 | ES/OpenSearch cluster (3+ nodes) | videostreamingplatform | Planned |

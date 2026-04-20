@@ -92,8 +92,9 @@ A distributed video streaming platform with HTTP/2 upload/download, event-driven
 The control plane for video resources. Exposes REST APIs for CRUD operations on video metadata stored in MySQL. On every create/update/delete, publishes a `VideoEvent` to the `video-events` Kafka topic. Also proxies recommendation requests to the recommendations service via `/recommendations`.
 
 - **Port**: 8080 (HTTP)
-- **Storage**: MySQL 8.0
+- **Storage**: MySQL 8.0 (primary), Redis (cache)
 - **Produces**: `video-events` topic
+- **Caching**: Redis caches `GetVideo` and `ListVideos` (keys `video:{id}`, `videos:list:{limit}:{offset}`); cache is invalidated on create/update/delete. Nil-safe — service runs without Redis if `REDIS_ADDR` is unset.
 
 ### Data Service (videostreamingplatform)
 
@@ -102,6 +103,7 @@ The data plane for video binary content. Supports HTTP/2 chunked uploads with pr
 - **Ports**: 8081 (HTTP/2), 50051 (gRPC)
 - **Storage**: S3/MinIO (video files), MySQL (upload state)
 - **Produces**: `watch-events` topic
+- **Upload store modes**: `UPLOAD_STORE=mysql` (default, production) or `UPLOAD_STORE=memory` (in-memory repository for local dev without MySQL). Chunk size defaults to 5 MB (`streaming.DefaultChunkSize`).
 
 ### Kafka→ES Consumer (videostreamingplatform-analytics)
 
@@ -120,6 +122,37 @@ Micro-batch consumer that writes user watch events into an Apache Iceberg table 
 ### Catalog Admin (videostreamingplatform-analytics)
 
 CLI tool for Iceberg table lifecycle. Creates tables (K8s Job on initial deploy), runs weekly compaction (CronJob), and supports snapshot expiration. Must run before the watch history consumer starts.
+
+### Core Platform Internal Structure (videostreamingplatform)
+
+Both Go services share a single module (`github.com/yourusername/videostreamingplatform`) and follow a strict 3-layer pattern:
+
+```
+handlers/  → HTTP/gRPC entry points, request/response parsing, no business logic
+bl/        → Business logic, orchestration (functional options: WithCache, WithKafkaProducer)
+dl/        → Data layer interfaces + implementations (MySQL, in-memory)
+db/        → Raw database connection setup
+models/    → Shared domain structs
+```
+
+Dependency direction: `handlers → bl → dl → db`. The `bl` layer depends on `dl` interfaces, not concrete implementations — enabling in-memory substitution for tests.
+
+#### Shared `utils/` packages (imported by both services)
+
+| Package | Purpose |
+|---------|---------|
+| `utils/config` | Env-driven config (`config.New(serviceName)`). Validates HTTP/gRPC ports and service name. |
+| `utils/observability` | Logger, OTel tracing (`InitTracer`), Prometheus metrics (`InitMetrics`). Tracing only initializes when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
+| `utils/kafka` | `Producer` interface + segmentio/kafka-go impl. Optional — services skip Kafka gracefully if `KAFKA_BROKERS` is empty. |
+| `utils/events` | Avro event structs for `VideoEvent` and `WatchEvent`. |
+| `utils/cache` | Redis-backed cache. Nil-safe — all methods no-op if `c==nil` or `addr=""`. |
+| `utils/middleware` | `ChainMiddleware`, `LoggingMiddleware`, `ErrorHandlingMiddleware`, per-IP token-bucket `RateLimiter`. |
+| `utils/recommendations` | HTTP client for the recommendations service (wired in metadataservice only). |
+| `utils/errors` | Shared error types. |
+
+#### Rate limiting
+
+All HTTP handlers run through a per-IP token-bucket limiter. Tunable via `RATE_LIMIT_PER_MIN` and `RATE_LIMIT_BURST` env vars.
 
 ### Recommendation Service (videostreamingplatform-recommendations)
 
@@ -164,7 +197,8 @@ Schemas live in `videostreamingplatform-schemas` in both Avro (Kafka wire format
 | Store | Technology | Database/Index | Owner | Consumers |
 |-------|-----------|---------------|-------|-----------|
 | Video metadata | MySQL 8.0 | `videoplatform` | Metadata Service | — |
-| Upload state | MySQL 8.0 | `videoplatform` | Data Service | — |
+| Video metadata cache | Redis | `video:*`, `videos:list:*` keys | Metadata Service | — |
+| Upload state | MySQL 8.0 (or in-memory) | `videoplatform` | Data Service | — |
 | Video files | S3 / MinIO | `video-platform-storage` bucket | Data Service | — |
 | Video search | Elasticsearch | `videos` index | Kafka→ES Consumer | Recommendations (search) |
 | Watch history (analytics) | Apache Iceberg | `analytics.watch_history` | Watch History Consumer | — |
@@ -247,6 +281,7 @@ All Go services use the shared `utils/observability` package for consistent trac
 | Layer | Technology |
 |-------|-----------|
 | Core services | Go 1.25 (net/http, gRPC) |
+| Metadata cache | Redis |
 | Data pipelines | Python 3.11+ (confluent-kafka, PyIceberg, PyArrow) |
 | Recommendations | Python 3.11+ (FastAPI, LangGraph, httpx, asyncpg) |
 | Streaming | Apache Kafka 3.9 (KRaft mode, no ZooKeeper) |

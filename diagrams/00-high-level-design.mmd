@@ -1,0 +1,77 @@
+---
+title: Video Streaming Platform — High-Level Design
+---
+flowchart LR
+    clients(("Clients / Viewers"))
+    cf["CloudFront CDN"]
+    razorpay["Razorpay<br/>payment links"]
+    llm["LLM<br/>Ollama (dev) / Bedrock (prod)"]
+    schemas["schemas<br/>Avro + Protobuf<br/>event contracts"]
+
+    subgraph core["videostreamingplatform (Go)"]
+        meta["metadata-service :8080<br/>video CRUD · reco proxy"]
+        data["data-service :8081<br/>upload / download (JWT-gated)"]
+        user["user-service :8082<br/>auth · subscriptions · payments"]
+        cdninv["cdn-invalidator<br/>worker"]
+    end
+
+    subgraph notifrepo["notifications (Go)"]
+        notif["notifications :8083<br/>rule engine · WS gateway"]
+    end
+
+    subgraph analytics["analytics (Python)"]
+        esc["kafka-es-consumer"]
+        whc["watch-history-consumer"]
+    end
+
+    subgraph reco["recommendations (Python)"]
+        rapi["recommendation-api :8000<br/>LangGraph retrieve→rank→filter"]
+    end
+
+    subgraph infra["infra · Kafka (KRaft)"]
+        kafka{{"video-events · watch-events<br/>subscription-events<br/>notification-events (+dlq)"}}
+    end
+
+    mysql[("MySQL<br/>metadata · uploads · users")]
+    redis[("Redis cache")]
+    s3[("S3<br/>video files")]
+    es[("Elasticsearch<br/>videos index")]
+    pg[("pgvector<br/>watch history · embeddings")]
+    iceberg[("Iceberg · Glue + S3<br/>watch_history")]
+
+    %% client + edge flows
+    clients -->|browse / upload| meta & data
+    clients -->|register / subscribe| user
+    clients -->|video delivery| cf --> s3
+    user -.->|issues HS256 JWT| clients
+    user -.->|shared JWT secret · verify| data
+
+    %% storage
+    meta --> mysql & redis
+    data --> mysql & s3
+    user --> mysql
+    user -->|link + webhook| razorpay
+
+    %% kafka producers
+    meta -->|video-events| kafka
+    data -->|watch-events| kafka
+    user -->|subscription-events| kafka
+    notif -->|notification-events| kafka
+
+    %% kafka consumers
+    kafka -->|video-events| esc --> es
+    kafka -->|video-events| cdninv --> cf
+    kafka -->|watch-events| whc --> iceberg
+    kafka -->|subscription-events| notif
+
+    %% recommendations
+    meta -->|/recommendations| rapi
+    rapi --> es & pg & llm
+    notif -.->|weekly report| pg
+
+    schemas -.->|defines| kafka
+
+    classDef store fill:#fde,stroke:#a37;
+    classDef ext fill:#eef,stroke:#557;
+    class mysql,redis,s3,es,pg,iceberg store;
+    class cf,razorpay,llm,schemas ext;

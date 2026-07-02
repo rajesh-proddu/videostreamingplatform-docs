@@ -1,0 +1,23 @@
+flowchart TB
+    subgraph ha["Highly available"]
+        kafka["Kafka STS x3<br/>RF=3 · minISR=2<br/>1-broker-per-node anti-affinity"]
+        rdsp["RDS (prod)<br/>multi-AZ standby"]
+        s3["S3<br/>versioned · SSE-KMS · 11 nines"]
+    end
+    subgraph spof["Single points of failure (cost tradeoff)"]
+        pg["pgvector STS x1"]
+        es["elasticsearch STS x1"]
+        rdsd["RDS (dev) single-AZ"]
+    end
+    note["EBS gp3 · RWO · WaitForFirstConsumer<br/>&rarr; PV pinned to one AZ:<br/>reschedule recovers only in the same AZ"]
+
+    pg -.-> note
+    es -.-> note
+    kafka -.->|survives 1 node/broker loss| ok(("stays writable"))
+    pg -.->|node/AZ loss| down(("unavailable until reattach"))
+    es -.->|node/AZ loss| down
+
+    classDef good fill:#efe,stroke:#575;
+    classDef bad fill:#fee,stroke:#a55;
+    class kafka,rdsp,s3 good;
+    class pg,es,rdsd bad;

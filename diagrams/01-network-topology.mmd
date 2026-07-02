@@ -1,0 +1,42 @@
+flowchart TB
+    internet(("Internet"))
+    viewers(("Video viewers"))
+    cf["CloudFront CDN<br/>OAI &rarr; S3 (private)"]
+    ghcr["ghcr.io / AWS APIs<br/>Bedrock / Razorpay"]
+
+    viewers -->|HTTPS| cf
+    cf -->|OAI read| s3
+
+    subgraph VPC["VPC 10.0.0.0/16 &nbsp;(DNS on)"]
+        igw["Internet Gateway"]
+        nlb["NLB per Service<br/>metadata/data/user/notif"]
+
+        subgraph PUB["PUBLIC subnets &nbsp;(map_public_ip)"]
+            direction LR
+            nat1["NAT GW AZ-a (+EIP)"]
+            nat2["NAT GW AZ-b (+EIP)"]
+            nat3["NAT GW AZ-c (+EIP)<br/>prod only"]
+        end
+
+        subgraph PRIV["PRIVATE subnets &nbsp;(no public IP)"]
+            nodes["EKS worker nodes<br/>(managed node group)<br/>all pods + StatefulSets"]
+            rds[("RDS MySQL<br/>db subnet group")]
+            redis[("ElastiCache Redis<br/>subnet group")]
+        end
+    end
+
+    internet <--> igw
+    igw <--> nlb
+    nlb -->|TCP| nodes
+    igw --- nat1 & nat2 & nat3
+    nodes -->|"0.0.0.0/0 (per-AZ RT)"| nat1
+    nat1 & nat2 & nat3 -->|egress| igw
+    igw -.-> ghcr
+    nodes --> rds
+    nodes --> redis
+    s3[("S3 videos bucket<br/>SSE-KMS, versioned")]
+
+    classDef mgd fill:#eef,stroke:#557;
+    classDef pub fill:#efe,stroke:#575;
+    class rds,redis,s3,cf mgd;
+    class nat1,nat2,nat3,nlb pub;

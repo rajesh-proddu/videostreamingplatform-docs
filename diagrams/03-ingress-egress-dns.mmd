@@ -1,0 +1,20 @@
+flowchart TB
+    ext(("External clients"))
+    subgraph cluster["Kubernetes cluster"]
+        subgraph edge["External-facing (NLB on AWS / NodePort local)"]
+            svcs["metadata :8080 · data :8081<br/>user :8082 · notif :8083"]
+        end
+        subgraph internal["ClusterIP + headless (internal DNS only)"]
+            dns["kafka.infra:9092 (headless)<br/>pgvector.infra:5432<br/>elasticsearch.vsp:9200<br/>recommendation-api:8000"]
+        end
+        np["NetworkPolicies:<br/>data plane admits only<br/>part-of=videostreamingplatform"]
+    end
+    egress(("NAT &rarr; IGW &rarr; Internet"))
+
+    ext -->|"L4 LB / NodePort"| svcs
+    svcs --> internal
+    internal --- np
+    cluster -->|"image pulls, Bedrock,<br/>Razorpay, AWS APIs"| egress
+
+    classDef sec fill:#ffe,stroke:#aa5;
+    class np sec;

@@ -1,0 +1,38 @@
+flowchart LR
+    subgraph vsp["ns: videostreamingplatform"]
+        meta["metadata-service<br/>Deploy x2 · HPA 2-10 · :8080"]
+        data["data-service<br/>Deploy x2 · HPA 2-10 · :8081"]
+        user["user-service<br/>Deploy x1 · :8082"]
+        cdninv["cdn-invalidator<br/>Deploy x1"]
+        notif["notifications<br/>Deploy · :8083 · WS gateway"]
+        es[("elasticsearch<br/>STS x1 · :9200")]
+    end
+
+    subgraph infra["ns: infra"]
+        kafka[("kafka<br/>STS x3 KRaft · :9092")]
+        pg[("pgvector<br/>STS x1 · :5432")]
+    end
+
+    subgraph an["ns: analytics"]
+        esc["kafka-es-consumer"]
+        whc["watch-history-consumer"]
+    end
+
+    subgraph reco["ns: recommendations"]
+        rapi["recommendation-api<br/>Deploy x2 · HPA 2-6 · :8000"]
+    end
+
+    meta -->|"video-events"| kafka
+    data -->|"watch-events"| kafka
+    user -->|"subscription-events"| kafka
+    kafka -->|video-events| esc --> es
+    kafka -->|watch-events| whc -->|Iceberg| glue[("Glue + S3")]
+    kafka -->|subscription-events| notif -->|notification-events| kafka
+    meta -->|"/recommendations proxy"| rapi
+    rapi --> es
+    rapi --> pg
+    cdninv -->|video-events| kafka
+    notif -.->|weekly-report CronJob| pg
+
+    classDef sts fill:#fde,stroke:#a37;
+    class kafka,pg,es sts;
